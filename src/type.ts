@@ -14,5 +14,6 @@ export enum TokenType {
     END_ARRAY,
     COMMA,
     COLON,
-    END_DOCUMENT
+    KEY,
+    END_DOCUMENT,
 }

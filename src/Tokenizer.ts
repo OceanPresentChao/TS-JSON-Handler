@@ -1,7 +1,7 @@
 import { CharReader } from './CharReader';
 import type { Token } from './type';
 import { TokenType } from './type';
-import { isWhiteSpace, isDangerCh } from "./tools"
+import { isWhiteSpace, isDangerCh, isDigit, isDigitPunc } from "./tools"
 
 
 export class Tokenizer {
@@ -22,9 +22,8 @@ export class Tokenizer {
             while (this.reader.hasNext()) {
                 this.reader.skipWhite();
                 const ch = this.reader.peek();
-                if (/^[0-9]$/.test(ch)) {
+                if (isDigit(ch) || isDigitPunc(ch)) {
                     this.TokenList.push(this.readNumber());
-                    console.log(this.TokenList);
                 } else if (ch === "t" || ch === "f") {
                     this.TokenList.push(this.readBoolean());
                 } else if (ch === '"') {
@@ -44,6 +43,7 @@ export class Tokenizer {
                     this.TokenList.push({ type: TokenType.END_OBJECT, value: "}" });
                     this.reader.next();
                 } else if (ch === ":") {
+                    if (this.TokenList.length >= 1) this.TokenList[this.TokenList.length - 1]!.type = TokenType.KEY;
                     this.TokenList.push({ type: TokenType.COLON, value: ":" });
                     this.reader.next();
                 } else if (ch === ",") {
@@ -58,15 +58,19 @@ export class Tokenizer {
         }
     }
     private readNumber(): Token {
-        let number = 0;
+        let str = "";
         while (this.reader.hasNext() && !isWhiteSpace(this.reader.peek()) && !isDangerCh(this.reader.peek())) {
             const ch = this.reader.peek();
-            if (/^[0-9]$/.test(ch)) {
-                number = number * 10 as number + Number(ch);
+            if (isDigit(ch) || isDigitPunc(ch)) {
+                str += ch;
             } else {
                 throw new Error("number词法错误")
             }
             this.reader.next();
+        }
+        let number = Number(str);
+        if (typeof number !== "number") {
+            throw new Error("number词法错误")
         }
         const token: Token = { type: TokenType.NUMBER, value: number };
         return token;
@@ -120,6 +124,7 @@ export class Tokenizer {
             this.reader.next();
         }
         const token: Token = { type: TokenType.STRING, value: text };
+        this.reader.next();
         return token;
     }
 }

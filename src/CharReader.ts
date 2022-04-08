@@ -50,7 +50,7 @@ export class CharReader {
     }
     skipWhite(): void {
         if (!isWhiteSpace(this.peek())) { return; }
-        while (this.hasNext() && isWhiteSpace(this.next())) { }
+        while (this.hasNext() && isWhiteSpace(this.peek())) { this.next(); }
     }
     isEmpty(): boolean { return this.len === 0; }
 }

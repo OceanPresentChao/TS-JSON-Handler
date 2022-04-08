@@ -33,3 +33,11 @@ export function toEscapee(ch: string): string {
 export function isDangerCh(ch: string): boolean {
     return ch === "]" || ch === "," || ch === "}"
 }
+
+export function isDigit(ch: string): boolean {
+    return /^[0-9]$/.test(ch);
+}
+
+export function isDigitPunc(ch: string): boolean {
+    return /^[\+\-\.eE]$/.test(ch);
+}
