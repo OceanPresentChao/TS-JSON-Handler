@@ -1,15 +1,21 @@
 import { CharReader } from './CharReader';
-import type { Token } from './type';
-import { TokenType } from './type';
+import type { Token, Value } from './type';
+import { TokenType, LooseObject } from './type';
 import { isWhiteSpace, isDangerCh, isDigit, isDigitPunc } from "./tools"
 
 
 export class Tokenizer {
     reader: CharReader
     TokenList: Array<Token>
+    private position: number
+    private len: number
+    private constValueType: number
     constructor() {
         this.reader = new CharReader();
         this.TokenList = [];
+        this.position = 0;
+        this.len = 0;
+        this.constValueType = TokenType.BOOLEAN | TokenType.STRING | TokenType.NULL | TokenType.NUMBER;
     }
     setText(text: string): void {
         this.reader.clear();
@@ -53,6 +59,8 @@ export class Tokenizer {
                     throw new Error("词法错误！");
                 }
             }
+            this.len = this.TokenList.length;
+            this.position = 0;
         } catch (err) {
             console.error(err);
         }
@@ -126,5 +134,156 @@ export class Tokenizer {
         const token: Token = { type: TokenType.STRING, value: text };
         this.reader.next();
         return token;
+    }
+    parse(text: string): Value | undefined {
+        if (text.trim() === "") { return text; }
+        this.tokenize(text);
+        console.log(this.TokenList);
+        try {
+            let theToken = this.TokenList[this.position];
+            if (theToken?.type === TokenType.NUMBER || theToken?.type === TokenType.STRING
+                || theToken?.type === TokenType.NULL || theToken?.type === TokenType.BOOLEAN) {
+                if (this.len === 1) { return theToken.value }
+                else { throw new Error("常值解析错误!"); }
+            } else if (theToken?.type === TokenType.BEGIN_ARRAY) {
+                this.position++;
+                return this.parseArray();
+            } else if (theToken?.type === TokenType.BEGIN_OBJECT) {
+                this.position++;
+                return this.parseObject();
+            } else {
+                throw new Error("输入语法有误！");
+            }
+        } catch (err) {
+            console.error(err);
+        }
+        return undefined;
+    }
+    private parseArray(): Array<any> {
+        let result: Array<any> = [];
+        let expectedType = this.constValueType | TokenType.END_ARRAY;
+        let currentToken: Token;
+        while (this.hasMore()) {
+            currentToken = this.TokenList[this.position]!;
+            switch (currentToken.type) {
+                case TokenType.END_ARRAY:
+                    if (this.isExpected(currentToken.type, expectedType)) {
+                        return result;
+                    }
+                    break;
+                case TokenType.BEGIN_ARRAY:
+                    if (this.isExpected(currentToken.type, expectedType)) {
+                        this.position++;
+                        result.push(this.parseArray());
+                        expectedType = this.constValueType | TokenType.END_ARRAY;
+                    }
+                    break;
+                case TokenType.BEGIN_OBJECT:
+                    if (this.isExpected(currentToken.type, expectedType)) {
+                        this.position++;
+                        result.push(this.parseObject());
+                        expectedType = TokenType.COMMA | TokenType.END_ARRAY;
+                    }
+                    break;
+                case TokenType.NULL:
+                case TokenType.STRING:
+                case TokenType.NUMBER:
+                case TokenType.BOOLEAN:
+                    if (this.isExpected(currentToken.type, expectedType)) {
+                        result.push(currentToken.value);
+                        expectedType = TokenType.COMMA | TokenType.END_ARRAY;
+                    }
+                    break;
+                case TokenType.COMMA:
+                    if (this.isExpected(currentToken.type, expectedType)) {
+                        expectedType = this.constValueType | TokenType.END_ARRAY | TokenType.BEGIN_OBJECT;
+                    }
+                    break;
+                default:
+                    throw new Error("语法错误！");
+            }
+            this.position++;
+        }
+        return result;
+    }
+    private parseObject(): object {
+        let result: Map<string, any> = new Map();
+        let expectedType = TokenType.KEY | TokenType.END_OBJECT;
+        let currentToken: Token;
+        let key: string = "";
+        while (this.hasMore()) {
+            currentToken = this.TokenList[this.position]!;
+            switch (currentToken.type) {
+                case TokenType.END_OBJECT:
+                    if (this.isExpected(currentToken.type, expectedType)) {
+                        this.position++;
+                        return this.map2object(result);
+                    }
+                    break;
+                case TokenType.BEGIN_OBJECT:
+                    if (this.isExpected(currentToken.type, expectedType)) {
+                        result.set(key, this.parseObject());
+                        expectedType = TokenType.KEY | TokenType.END_OBJECT;
+                    }
+                    break;
+                case TokenType.BEGIN_ARRAY:
+                    if (this.isExpected(currentToken.type, expectedType)) {
+                        this.position++;
+                        result.set(key, this.parseArray());
+                        expectedType = TokenType.KEY | TokenType.END_OBJECT;
+                    }
+                    break;
+                case TokenType.KEY:
+                    if (this.isExpected(currentToken.type, expectedType)) {
+                        key = currentToken.value as string;
+                        expectedType = TokenType.COLON;
+                    }
+                    break;
+                case TokenType.COLON:
+                    if (this.isExpected(currentToken.type, expectedType)) {
+                        expectedType = this.constValueType | TokenType.BEGIN_ARRAY | TokenType.BEGIN_OBJECT;
+                    }
+                    break;
+                case TokenType.COMMA:
+                    if (this.isExpected(currentToken.type, expectedType)) {
+                        expectedType = TokenType.KEY | TokenType.END_OBJECT;
+                    }
+                    break;
+                case TokenType.NULL:
+                case TokenType.STRING:
+                case TokenType.NUMBER:
+                case TokenType.BOOLEAN:
+                    if (this.isExpected(currentToken.type, expectedType)) {
+                        result.set(String(key), currentToken.value);
+                        expectedType = TokenType.COMMA | TokenType.END_OBJECT;
+                    }
+                    break;
+                default:
+                    throw new Error("语法错误！");
+            }
+            this.position++;
+        }
+        return this.map2object(result);
+    }
+    private isExpected(currentType: number, expectedType: number): boolean {
+        if ((currentType & expectedType) === 0) {
+            throw new Error("语法错误！");
+        }
+        return true;
+    }
+    private hasMore(): boolean {
+        return this.position < this.len;
+    }
+    private map2object(map: Map<string, any>): LooseObject {
+        let obj: LooseObject = {};
+        for (const [key, value] of map.entries()) {
+            if (value instanceof Map) {
+                obj[key] = this.map2object(value);
+            } else {
+                obj[key] = value;
+            }
+        }
+        console.log("!!!", obj);
+        return obj;
     }
 }
