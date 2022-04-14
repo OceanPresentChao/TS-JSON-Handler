@@ -6,6 +6,7 @@ export class MyJSON {
         this.tokenizer = new Tokenizer();
     }
     stringify(val: Value): string {
+        /**将JavaScript值转换成JSON对象 */
         if (typeof val === "boolean" || typeof val === "number"
             || typeof val === "string") {
             return val.toString();
@@ -28,6 +29,7 @@ export class MyJSON {
     }
     private stringifyObject(obj: Object): string {
         let result = "{";
+        // stringify要更简单。类型很好判断，注意递归即可
         for (const [key, value] of Object.entries(obj)) {
             if (Array.isArray(value)) {
                 result += `"${String(key)}":${this.stringifyArray(value)},`;

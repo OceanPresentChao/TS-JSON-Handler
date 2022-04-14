@@ -1,4 +1,5 @@
 export function isWhiteSpace(ch: string): boolean {
+    /**判断是否是无用的空白字符 */
     if (ch && (ch === " " || ch === "\t" || ch === "\r" || ch === "\n")) {
         return true;
     }

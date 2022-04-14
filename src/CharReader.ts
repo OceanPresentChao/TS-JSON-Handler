@@ -1,5 +1,6 @@
 import { isWhiteSpace } from './tools';
 export class CharReader {
+    /**CharReader只负责读取字符串 */
     text: string
     position: number
     len: number
